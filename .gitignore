@@ -1,0 +1,19 @@
+# Java
+target/
+*.class
+
+# .NET
+bin/
+obj/
+
+# Node / React Native
+node_modules/
+.expo/
+dist/
+
+# Local env and editors
+.env
+.idea/
+.vscode/
+*.iml
+.DS_Store

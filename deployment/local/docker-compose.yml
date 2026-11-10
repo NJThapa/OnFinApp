@@ -1,0 +1,43 @@
+name: app-local
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${DB_USER:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-app}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-app}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api-java:
+    build: ../../app/api/java
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/app_java
+      DB_USER: ${DB_USER:-app}
+      DB_PASSWORD: ${DB_PASSWORD:-app}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api-dotnet:
+    build: ../../app/api/dotnet
+    environment:
+      ConnectionStrings__Default: Host=postgres;Port=5432;Database=app_dotnet;Username=${DB_USER:-app};Password=${DB_PASSWORD:-app}
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
