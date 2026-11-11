@@ -20,10 +20,10 @@ public class HealthController {
     public ResponseEntity<Map<String, String>> health() {
         try {
             jdbc.queryForObject("select 1", Integer.class);
-            return ResponseEntity.ok(Map.of("stack", "java-springboot", "status", "ok", "db", "up"));
+            return ResponseEntity.ok(Map.of("stack", "java", "status", "ok", "db", "up"));
         } catch (Exception e) {
             return ResponseEntity.status(503)
-                    .body(Map.of("stack", "java-springboot", "status", "degraded", "db", "down"));
+                    .body(Map.of("stack", "java", "status", "degraded", "db", "down"));
         }
     }
 }

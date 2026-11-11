@@ -1,0 +1,110 @@
+openapi: 3.1.0
+info:
+  title: OnFinApp API
+  version: 0.1.0
+  description: >
+    Shared contract implemented by both the Java and the .NET API.
+    Every endpoint requires a bearer JWT except GET /api/health.
+
+servers:
+  - url: http://localhost:8080
+    description: Java API (local)
+  - url: http://localhost:8081
+    description: .NET API (local)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Liveness and database check
+      security: []
+      responses:
+        "200":
+          description: API is up and the database is reachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "503":
+          description: API is up but the database is unreachable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+  /api/v1/me:
+    get:
+      operationId: getMe
+      summary: Current user
+      description: Creates the local user record on the first authenticated request.
+      responses:
+        "200":
+          description: The authenticated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Missing, expired or invalid token
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    Health:
+      type: object
+      required: [stack, status, db]
+      additionalProperties: false
+      properties:
+        stack:
+          type: string
+          enum: [java, dotnet]
+          description: Which implementation answered
+        status:
+          type: string
+          enum: [ok, degraded]
+        db:
+          type: string
+          enum: [up, down]
+
+    User:
+      type: object
+      required: [id, email, name]
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: [string, "null"]
+        name:
+          type: [string, "null"]
+
+    Problem:
+      description: RFC 9457 problem details
+      type: object
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
