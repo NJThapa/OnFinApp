@@ -1,0 +1,74 @@
+{
+  "instrument": {
+    "symbol": "BRK.B",
+    "name": "Berkshire Hathaway Inc. Class B",
+    "type": "STOCK"
+  },
+  "newYorkDate": "2026-11-11",
+  "answer": {
+    "summary": "Mock analysis of Berkshire Hathaway Inc. Class B (BRK.B). This text is generated from fixtures by the mock LLM; it is not real research.",
+    "bullPoints": [
+      "Mock bull point: Berkshire Hathaway Inc. Class B keeps growing revenue in its core business.",
+      "Mock bull point: margins leave room to keep investing.",
+      "Mock bull point: the balance sheet is strong."
+    ],
+    "bearPoints": [
+      "Mock bear point: BRK.B trades at a high valuation.",
+      "Mock bear point: growth is slowing in the largest segment."
+    ],
+    "risks": [
+      "Mock risk: tougher competition.",
+      "Mock risk: regulatory changes."
+    ],
+    "keyFigures": [
+      {
+        "label": "Revenue growth (YoY)",
+        "value": "5.8%",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "Operating margin",
+        "value": "25.8%",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "P/E ratio",
+        "value": "35.8",
+        "asOf": "2026-11-11"
+      }
+    ],
+    "rating": "HOLD",
+    "confidence": "LOW",
+    "rationale": "Mock rationale: the invented figures for BRK.B are mixed.",
+    "sources": [
+      {
+        "title": "Berkshire Hathaway Inc. Class B investor relations (mock)",
+        "url": "https://example.com/mock/BRK.B/investor-relations"
+      },
+      {
+        "title": "BRK.B latest quarterly report (mock)",
+        "url": "https://example.com/mock/BRK.B/quarterly-report"
+      },
+      {
+        "title": "Market commentary on BRK.B (mock)",
+        "url": "https://example.com/mock/BRK.B/market-commentary"
+      }
+    ]
+  },
+  "searchResults": [
+    {
+      "title": "Berkshire Hathaway Inc. Class B investor relations (mock)",
+      "url": "https://example.com/mock/BRK.B/investor-relations"
+    },
+    {
+      "title": "BRK.B latest quarterly report (mock)",
+      "url": "https://example.com/mock/BRK.B/quarterly-report"
+    },
+    {
+      "title": "Market commentary on BRK.B (mock)",
+      "url": "https://example.com/mock/BRK.B/market-commentary"
+    }
+  ],
+  "outputTokens": 558,
+  "model": "mock"
+}

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, test } from 'node:test';
 
-import { API, assertProblem, assertUnauthorizedProblem, fetchToken, get, send } from './helpers.mjs';
+import { API, assertProblem, assertUnauthorizedProblem, fetchToken, get, send, waitForAnalysis } from './helpers.mjs';
 
 const FIXTURES = JSON.parse(readFileSync(new URL('../shared/mock/instruments.json', import.meta.url), 'utf8'));
 const ALL_SYMBOLS = FIXTURES.map((f) => f.symbol).sort();
@@ -205,6 +205,17 @@ describe(`instruments @ ${API}`, () => {
       assert.deepEqual(await json('/api/v1/watchlist'), { items: [], limit: 50 });
     });
 
+    test('shows the current rating once an analysis exists', async () => {
+      const { status, analysis } = await waitForAnalysis('NVDA', token);
+      assert.equal(status, 'READY');
+      assert.equal((await send('PUT', '/api/v1/watchlist/NVDA', token)).status, 204);
+
+      const { items } = await json('/api/v1/watchlist');
+      assert.equal(items.find((i) => i.symbol === 'NVDA').rating, analysis.rating);
+
+      assert.equal((await send('DELETE', '/api/v1/watchlist/NVDA', token)).status, 204);
+    });
+
     test('follow, list in the order followed, unfollow', async () => {
       for (const symbol of ['MSFT', 'aapl', 'BRK.B']) {
         const res = await send('PUT', `/api/v1/watchlist/${symbol}`, token);
@@ -216,7 +227,7 @@ describe(`instruments @ ${API}`, () => {
       for (const item of items) {
         assert.deepEqual(sorted(Object.keys(item)), ['exchange', 'name', 'quote', 'rating', 'symbol', 'type']);
         assertQuote(item.quote);
-        assert.equal(item.rating, null);
+        assert.ok([null, 'BUY', 'HOLD', 'SELL'].includes(item.rating)); // null until an analysis exists
       }
       assert.equal((await json('/api/v1/instruments/AAPL')).following, true);
 

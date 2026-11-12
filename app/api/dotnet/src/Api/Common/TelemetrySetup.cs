@@ -12,6 +12,9 @@ public static class TelemetrySetup
 {
     private const string DefaultServiceName = "onfinapp-api-dotnet";
 
+    /// Source of the spans the API starts itself, such as background generation jobs.
+    public static readonly ActivitySource Source = new("OnFinApp.Api");
+
     /// Console logs as one JSON object per line, carrying the correlation ID and the trace and span IDs.
     public static void AddStructuredLogging(this WebApplicationBuilder builder)
     {
@@ -44,7 +47,8 @@ public static class TelemetrySetup
                 .AddAspNetCoreInstrumentation(options =>
                     options.Filter = context => !context.Request.Path.StartsWithSegments("/api/health"))
                 .AddHttpClientInstrumentation()
-                .AddNpgsql())
+                .AddNpgsql()
+                .AddSource(Source.Name))
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()

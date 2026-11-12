@@ -1,17 +1,17 @@
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { ActivityIndicator, Button, Chip, Divider, IconButton, Searchbar, Snackbar, Text, useTheme } from 'react-native-paper';
+import { ActivityIndicator, Button, Divider, IconButton, Searchbar, Snackbar, Text, useTheme } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { type Instrument, type Quote, type Rating, searchInstruments } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { EmptyState } from '../components/EmptyState';
 import { direction, formatChangePercent, formatPrice } from '../format/money';
+import { RATING_LABEL } from '../format/rating';
 import { useMarketColors } from '../theme';
 import { useWatchlist } from '../watchlist/WatchlistContext';
 
-const RATING_LABEL: Record<Rating, string> = { BUY: 'Buy', HOLD: 'Hold', SELL: 'Sell' };
 const SEARCH_DELAY_MS = 300;
 
 /** A watchlist row carries a quote and rating; a search result is the instrument alone. */
@@ -199,9 +199,13 @@ function InstrumentRow({ row, following, onOpen, onToggle }: { row: Row; followi
             {row.name}
           </Text>
           {rating ? (
-            <Chip compact mode="outlined" style={styles.rating} textStyle={{ color: ratingColor }}>
+            <Text
+              variant="labelMedium"
+              style={[styles.rating, { color: ratingColor, borderColor: ratingColor }]}
+              testID={`rating-${row.symbol}`}
+            >
               {RATING_LABEL[rating]}
-            </Chip>
+            </Text>
           ) : null}
         </View>
 
@@ -244,7 +248,8 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 4 },
   rowTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   badge: { borderWidth: 1, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
-  rating: { alignSelf: 'flex-start', marginTop: 2 },
+  // A plain label rather than a Chip: a Chip is a button, and the row it sits in is already one.
+  rating: { alignSelf: 'flex-start', marginTop: 2, borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, overflow: 'hidden' },
   rowPrice: { alignItems: 'flex-end', gap: 2 },
   numeric: { fontVariant: ['tabular-nums'] },
 });

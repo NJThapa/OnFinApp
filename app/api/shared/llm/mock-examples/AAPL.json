@@ -1,0 +1,74 @@
+{
+  "instrument": {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "type": "STOCK"
+  },
+  "newYorkDate": "2026-11-11",
+  "answer": {
+    "summary": "Mock analysis of Apple Inc. (AAPL). This text is generated from fixtures by the mock LLM; it is not real research.",
+    "bullPoints": [
+      "Mock bull point: Apple Inc. keeps growing revenue in its core business.",
+      "Mock bull point: margins leave room to keep investing.",
+      "Mock bull point: the balance sheet is strong."
+    ],
+    "bearPoints": [
+      "Mock bear point: AAPL trades at a high valuation.",
+      "Mock bear point: growth is slowing in the largest segment."
+    ],
+    "risks": [
+      "Mock risk: tougher competition.",
+      "Mock risk: regulatory changes."
+    ],
+    "keyFigures": [
+      {
+        "label": "Revenue growth (YoY)",
+        "value": "13.1%",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "Operating margin",
+        "value": "8.1%",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "P/E ratio",
+        "value": "39.1",
+        "asOf": "2026-11-11"
+      }
+    ],
+    "rating": "HOLD",
+    "confidence": "HIGH",
+    "rationale": "Mock rationale: the invented figures for AAPL are mixed.",
+    "sources": [
+      {
+        "title": "Apple Inc. investor relations (mock)",
+        "url": "https://example.com/mock/AAPL/investor-relations"
+      },
+      {
+        "title": "AAPL latest quarterly report (mock)",
+        "url": "https://example.com/mock/AAPL/quarterly-report"
+      },
+      {
+        "title": "Market commentary on AAPL (mock)",
+        "url": "https://example.com/mock/AAPL/market-commentary"
+      }
+    ]
+  },
+  "searchResults": [
+    {
+      "title": "Apple Inc. investor relations (mock)",
+      "url": "https://example.com/mock/AAPL/investor-relations"
+    },
+    {
+      "title": "AAPL latest quarterly report (mock)",
+      "url": "https://example.com/mock/AAPL/quarterly-report"
+    },
+    {
+      "title": "Market commentary on AAPL (mock)",
+      "url": "https://example.com/mock/AAPL/market-commentary"
+    }
+  ],
+  "outputTokens": 431,
+  "model": "mock"
+}

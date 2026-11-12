@@ -11,7 +11,7 @@ app/
   api/
     contract/openapi.yaml   source of truth for both APIs
     contract-tests/         one test suite, run against either API
-    shared/                 files both APIs read: mock price fixtures now, LLM prompts later
+    shared/                 files both APIs read: mock price fixtures, LLM prompts and schemas
     java/                   Spring Boot API (Java 21, Maven)
     dotnet/                 ASP.NET Core API (.NET 10)
   database/migrations/      plain SQL, versioned; neither API owns the schema
@@ -71,6 +71,39 @@ identically in both APIs, and are not market data. Finnhub comes with milestone 
 
 A user can follow up to 50 instruments (`WATCHLIST_LIMIT`).
 
+## AI analysis and ratings
+
+Each instrument has one analysis, shared by all users: a summary, bull and bear points, risks, key figures,
+sources, and a rating (Buy, Hold or Sell) with a confidence and a rationale. Every generation also adds a row
+to the rating history.
+
+- **On demand.** `GET /api/v1/instruments/{symbol}/analysis` returns the stored analysis while it is valid
+  (24 hours, `ANALYSIS_TTL_HOURS`). Otherwise it queues a generation and answers `202` with status
+  `GENERATING`; the app asks again every two seconds. Generation never runs inside a request.
+- **Job queue.** Jobs are rows in `generation_jobs`. Each API runs a worker that claims a job with
+  `FOR UPDATE SKIP LOCKED`, so with both APIs running a job still runs once, and only one generation per
+  instrument is queued or running at a time. Set `JAVA_ANALYSIS_WORKER_ENABLED=false` or
+  `DOTNET_ANALYSIS_WORKER_ENABLED=false` to make one API queue jobs without running them.
+- **Failures.** A failed or invalid answer is retried once. After that the job is marked failed, the last valid
+  analysis stays visible with status `FAILED`, and no new attempt starts on demand for 5 minutes
+  (`ANALYSIS_RETRY_AFTER_MINUTES`). An API that shuts down in the middle of a job hands it back to the queue.
+- **Refresh.** `POST .../analysis/refresh` queues a new generation. It is ignored while the analysis is
+  younger than an hour (`ANALYSIS_REFRESH_MIN_AGE_MINUTES`), and each user can queue 5 refreshes in any
+  24 hours (`ANALYSIS_REFRESH_LIMIT`); beyond that the answer is `429`.
+- **Checks.** The prompt and the JSON schema of the answer are in `app/api/shared/llm/` and are loaded by both
+  APIs. An answer is stored only if it passes the checks listed in `app/api/shared/llm/README.md`; in
+  particular, a rating must cite at least one source that the search tool returned.
+- **Records.** Each analysis stores which API generated it, the model, the duration and the token usage. The
+  worker's log lines carry the job ID and the correlation ID of the request that queued the job.
+
+The only LLM so far is `mock` (`LLM_PROVIDER=mock`, the default). **Its analyses and ratings are invented**:
+they are built from fixed rules, say so in their text, and cite `example.com` addresses that do not exist. The
+mock rating changes from day to day so the history shows changes. `LLM_MOCK_DELAY_MS` (default 1500) sets how
+long it takes to answer and `LLM_MOCK_FAIL_SYMBOLS` lists tickers for which it fails. A real vendor comes with
+milestone 7.
+
+Not built yet: the scheduled refresh (milestone 5) and the daily cap on generations (milestone 6).
+
 ## Errors, logging and telemetry
 
 **Errors.** Each API has one global exception handler, and the response depends on the type of exception:
@@ -109,7 +142,7 @@ compose nothing is exported unless that variable is set (and, for the Java image
 
 ## API code layout
 
-Both APIs are organised the same way, by feature (users, instruments, prices, watchlist), each with three layers:
+Both APIs are organised the same way, by feature (users, instruments, prices, watchlist, llm, analysis), each with three layers:
 an HTTP layer (controllers in Java, endpoint classes in .NET) that only reads the request and picks the status
 code, a service with the rules, and a repository with the SQL. Errors are thrown as exceptions and turned into
 RFC 9457 problem responses in one place per API.
@@ -124,12 +157,13 @@ RFC 9457 problem responses in one place per API.
 dotnet test app/api/dotnet/OnFinApp.Api.slnx
 
 # Java (no local JDK needed; runs Maven in a container and keeps its downloads in a volume)
-docker run --rm -v "$PWD/app/api/java":/src -v onfinapp-m2:/root/.m2 -w /src \
+docker run --rm -v "$PWD/app/api":/work -v onfinapp-m2:/root/.m2 -w /work/java \
   maven:3.9-eclipse-temurin-21 mvn -q -B test
 ```
 
 The mock price provider's tests assert the same numbers in both suites, computed from
-`app/api/shared/mock/README.md`.
+`app/api/shared/mock/README.md`. The mock LLM's tests in both suites compare against the same files in
+`app/api/shared/llm/mock-examples/`, which is why the Java command mounts `app/api` rather than `app/api/java`.
 
 ## Contract tests
 
@@ -140,6 +174,9 @@ cd app/api/contract-tests
 npm run test:java     # against http://localhost:8080
 npm run test:dotnet   # against http://localhost:8081
 ```
+
+Analyses are kept for 24 hours and shared by both APIs, so the analysis tests see `202` and a generation only
+on the first run of the day; later runs find the analyses already stored.
 
 The token-validation tests ask Keycloak for a token from its built-in `admin-cli` client, which carries no
 `onfinapp-api` audience, to check that both APIs refuse it.

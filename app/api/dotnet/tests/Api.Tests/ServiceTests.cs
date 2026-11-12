@@ -233,11 +233,13 @@ public class WatchlistServiceTests
 
     private readonly FakeWatchlistRepository watchlist = new(Sample.Apple, Sample.Microsoft, Sample.Spy);
     private readonly FakePriceProvider provider = new();
+    private readonly FakeAnalysisRepository analyses = new();
 
     private WatchlistService Service(int limit = 50) => new(
         watchlist,
         new FakeInstrumentRepository(Sample.Apple, Sample.Microsoft, Sample.Spy),
         new PriceService(new FakePriceCache(), provider, NullLogger<PriceService>.Instance),
+        analyses,
         Options.Create(new WatchlistOptions { Limit = limit }),
         NullLogger<WatchlistService>.Instance);
 
@@ -257,6 +259,18 @@ public class WatchlistServiceTests
             Assert.Equal(FakePriceProvider.Quote, item.Quote);
             Assert.Null(item.Rating);
         });
+    }
+
+    [Fact]
+    public async Task Items_carry_the_current_rating_once_an_analysis_exists()
+    {
+        analyses.Latest[Sample.Apple.Id] = SampleAnalysis.Stored(rating: "BUY");
+        await Service().FollowAsync(UserId, "AAPL", default);
+        await Service().FollowAsync(UserId, "MSFT", default);
+
+        var result = await Service().GetAsync(UserId, default);
+
+        Assert.Equal(["BUY", null], result.Items.Select(i => i.Rating));
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OnFinApp API
-  version: 0.3.0
+  version: 0.4.0
   description: >
     Shared contract implemented by both the Java and the .NET API.
     Every endpoint requires a bearer JWT except GET /api/health.
@@ -136,6 +136,97 @@ paths:
           $ref: "#/components/responses/NotFound"
         "503":
           $ref: "#/components/responses/PricesUnavailable"
+
+  /api/v1/instruments/{symbol}/analysis:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    get:
+      operationId: getAnalysis
+      summary: AI-generated analysis and rating of an instrument
+      description: >
+        Returns the stored analysis while it is valid. When there is none, or it has expired, generation
+        starts in the background and the answer is 202 with status GENERATING; ask again until the status
+        changes. An expired analysis is still returned while its replacement is generated. When the
+        last generation failed, the status is FAILED for a few minutes before another attempt is made.
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "200":
+          description: Status READY with a valid analysis, or FAILED with the last analysis if there is one
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisStatus"
+        "202":
+          description: Status GENERATING; a generation is queued or running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/instruments/{symbol}/analysis/refresh:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    post:
+      operationId: refreshAnalysis
+      summary: Ask for a new analysis
+      description: >
+        Queues a new generation. The request is ignored, with status READY, when the current analysis is
+        younger than the minimum age (default 1 hour). Each user can queue a limited number of
+        refreshes in any 24 hours (default 5); joining a generation that is already running does not count.
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "200":
+          description: Ignored; the current analysis is recent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisStatus"
+        "202":
+          description: Status GENERATING; a generation is queued or running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          description: The user's refresh limit is reached
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /api/v1/instruments/{symbol}/ratings:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    get:
+      operationId: getRatings
+      summary: Rating history of an instrument, newest first
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of ratings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RatingPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/v1/watchlist:
     parameters:
@@ -389,6 +480,130 @@ components:
     Rating:
       type: string
       enum: [BUY, HOLD, SELL]
+
+    Confidence:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    Source:
+      type: object
+      required: [title, url]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        url:
+          type: string
+          format: uri
+
+    KeyFigure:
+      type: object
+      required: [label, value, asOf]
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+          description: The figure as text, with its unit
+        asOf:
+          type: string
+          format: date
+
+    Analysis:
+      type: object
+      required:
+        [summary, bullPoints, bearPoints, risks, keyFigures, sources, rating, confidence, rationale,
+         generatedAt, expiresAt, generatedBy]
+      additionalProperties: false
+      properties:
+        summary:
+          type: string
+        bullPoints:
+          type: array
+          items:
+            type: string
+        bearPoints:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        keyFigures:
+          type: array
+          items:
+            $ref: "#/components/schemas/KeyFigure"
+        sources:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/Source"
+        rating:
+          $ref: "#/components/schemas/Rating"
+        confidence:
+          $ref: "#/components/schemas/Confidence"
+        rationale:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          description: After this time the analysis is regenerated the next time it is asked for
+        generatedBy:
+          type: string
+          enum: [java, dotnet]
+          description: Which implementation generated it
+
+    AnalysisStatus:
+      type: object
+      required: [symbol, status, analysis]
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+        status:
+          type: string
+          enum: [READY, GENERATING, FAILED]
+          description: >
+            READY: the analysis is valid. GENERATING: a generation is queued or running; ask again.
+            FAILED: the last generation failed; the analysis, if any, is the last valid one.
+        analysis:
+          description: The latest analysis; null when none has been generated yet
+          oneOf:
+            - $ref: "#/components/schemas/Analysis"
+            - type: "null"
+
+    RatingEntry:
+      type: object
+      required: [rating, confidence, rationale, createdAt]
+      additionalProperties: false
+      properties:
+        rating:
+          $ref: "#/components/schemas/Rating"
+        confidence:
+          $ref: "#/components/schemas/Confidence"
+        rationale:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    RatingPage:
+      type: object
+      required: [items, nextCursor]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RatingEntry"
+        nextCursor:
+          type: [string, "null"]
+          description: Pass as `cursor` to get the next page; null on the last page.
 
     WatchlistItem:
       type: object

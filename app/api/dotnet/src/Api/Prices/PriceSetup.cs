@@ -8,7 +8,7 @@ public sealed class PriceOptions
     /// "mock" generates invented prices from the fixtures in the shared folder; no API key needed.
     public string Provider { get; set; } = "mock";
 
-    /// Folder shared by both APIs (app/api/shared): mock fixtures now, LLM prompts later.
+    /// Folder shared by both APIs (app/api/shared): mock fixtures and LLM prompts.
     public string SharedDir { get; set; } = "../../../shared";
 
     public int InstrumentSyncIntervalHours { get; set; } = 24;

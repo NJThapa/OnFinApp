@@ -13,11 +13,16 @@ public sealed partial class CorrelationMiddleware(RequestDelegate next, ILogger<
 {
     public const string Header = "X-Correlation-ID";
     public const string SpanAttribute = "app.correlation_id";
+    private const string ItemKey = "CorrelationId";
+
+    /// The correlation ID of a request that passed through this middleware.
+    public static string? IdOf(HttpContext context) => context.Items[ItemKey] as string;
 
     public async Task InvokeAsync(HttpContext context)
     {
         var correlationId = Accept(context.Request.Headers[Header]) ?? Guid.NewGuid().ToString();
         Activity.Current?.SetTag(SpanAttribute, correlationId);
+        context.Items[ItemKey] = correlationId;
 
         // Set when the response starts, so it survives the exception handler clearing the response.
         context.Response.OnStarting(() =>

@@ -13,6 +13,11 @@ export type PricePoint = components['schemas']['PricePoint'];
 export type Rating = components['schemas']['Rating'];
 export type Watchlist = components['schemas']['Watchlist'];
 export type WatchlistItem = components['schemas']['WatchlistItem'];
+export type Analysis = components['schemas']['Analysis'];
+export type AnalysisStatus = components['schemas']['AnalysisStatus'];
+export type Confidence = components['schemas']['Confidence'];
+export type RatingEntry = components['schemas']['RatingEntry'];
+export type RatingPage = components['schemas']['RatingPage'];
 
 /** Request and response header that ties a call to the API's log lines. */
 export const CORRELATION_HEADER = 'X-Correlation-ID';
@@ -73,6 +78,32 @@ export async function getPrices(
   range: PriceRange,
 ): Promise<PriceSeries> {
   return readJson<PriceSeries>(await authorizedFetch(`/api/v1/instruments/${symbolPath(symbol)}/prices?range=${range}`));
+}
+
+/** The stored analysis. While `status` is GENERATING, ask again until it changes. */
+export async function getAnalysis(authorizedFetch: AuthorizedFetch, symbol: string): Promise<AnalysisStatus> {
+  return readJson<AnalysisStatus>(await authorizedFetch(`/api/v1/instruments/${symbolPath(symbol)}/analysis`));
+}
+
+/**
+ * Asks for a new analysis. `status` is GENERATING when one was queued, READY when the request was ignored
+ * because the current analysis is recent. Throws an ApiError with status 429 at the user's refresh limit.
+ */
+export async function refreshAnalysis(authorizedFetch: AuthorizedFetch, symbol: string): Promise<AnalysisStatus> {
+  return readJson<AnalysisStatus>(
+    await authorizedFetch(`/api/v1/instruments/${symbolPath(symbol)}/analysis/refresh`, { method: 'POST' }),
+  );
+}
+
+/** Rating history, newest first. */
+export async function getRatings(
+  authorizedFetch: AuthorizedFetch,
+  symbol: string,
+  cursor?: string | null,
+): Promise<RatingPage> {
+  const params = new URLSearchParams({ limit: '10' });
+  if (cursor) params.set('cursor', cursor);
+  return readJson<RatingPage>(await authorizedFetch(`/api/v1/instruments/${symbolPath(symbol)}/ratings?${params}`));
 }
 
 export async function getWatchlist(authorizedFetch: AuthorizedFetch): Promise<Watchlist> {

@@ -17,3 +17,6 @@ public sealed class WatchlistLimitException(int limit)
 
 public sealed class PricesUnavailableException()
     : ApiProblemException(StatusCodes.Status503ServiceUnavailable, "Prices are unavailable right now.");
+
+public sealed class RefreshLimitException(int limit)
+    : ApiProblemException(StatusCodes.Status429TooManyRequests, $"You can refresh up to {limit} analyses in 24 hours.");

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+import com.onfinapp.api.analysis.AnalysisRepository;
 import com.onfinapp.api.common.ApiProblemException;
 import com.onfinapp.api.instrument.Instrument;
 import com.onfinapp.api.instrument.InstrumentRepository;
@@ -40,8 +41,9 @@ class WatchlistServiceTest {
     private final WatchlistRepository watchlist = mock(WatchlistRepository.class);
     private final InstrumentRepository instruments = mock(InstrumentRepository.class);
     private final PriceService prices = mock(PriceService.class);
+    private final AnalysisRepository analyses = mock(AnalysisRepository.class);
     private final WatchlistService service =
-            new WatchlistService(watchlist, instruments, prices, new WatchlistProperties(2));
+            new WatchlistService(watchlist, instruments, prices, analyses, new WatchlistProperties(2));
 
     @BeforeEach
     void knownInstruments() {
@@ -54,14 +56,16 @@ class WatchlistServiceTest {
     void listsFollowedInstrumentsWithQuotesAndTheLimit() {
         when(watchlist.list(USER_ID)).thenReturn(List.of(MICROSOFT, APPLE));
         when(prices.quotes(List.of(MICROSOFT.ref(), APPLE.ref()))).thenReturn(Map.of(MICROSOFT.id(), QUOTE));
+        when(analyses.latestRatings(List.of(MICROSOFT.id(), APPLE.id()))).thenReturn(Map.of(APPLE.id(), "BUY"));
 
         WatchlistResponse result = service.get(USER_ID);
 
         assertThat(result.limit()).isEqualTo(2);
-        // An instrument whose quote is unavailable is still listed, without a quote. Ratings come with milestone 3.
+        // An instrument whose quote is unavailable is still listed, without a quote.
+        // The rating is null until an analysis has been generated.
         assertThat(result.items()).containsExactly(
                 new WatchlistItemResponse("MSFT", "Microsoft Corporation", "STOCK", "NASDAQ", QUOTE, null),
-                new WatchlistItemResponse("AAPL", "Apple Inc.", "STOCK", "NASDAQ", null, null));
+                new WatchlistItemResponse("AAPL", "Apple Inc.", "STOCK", "NASDAQ", null, "BUY"));
     }
 
     @Test

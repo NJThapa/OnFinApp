@@ -1,4 +1,6 @@
+using OnFinApp.Api.Analyses;
 using OnFinApp.Api.Instruments;
+using OnFinApp.Api.Llm;
 using OnFinApp.Api.Prices;
 using OnFinApp.Api.Watchlist;
 
@@ -109,4 +111,136 @@ internal static class Sample
     public static readonly Instrument Apple = new(Guid.NewGuid(), "AAPL", "Apple Inc.", "STOCK", "NASDAQ");
     public static readonly Instrument Microsoft = new(Guid.NewGuid(), "MSFT", "Microsoft Corporation", "STOCK", "NASDAQ");
     public static readonly Instrument Spy = new(Guid.NewGuid(), "SPY", "SPDR S&P 500 ETF Trust", "ETF", "NYSE Arca");
+}
+
+internal sealed class FakeAnalysisRepository : IAnalysisRepository
+{
+    public Dictionary<Guid, StoredAnalysis> Latest { get; } = [];
+    public Dictionary<Guid, List<RatingRow>> Ratings { get; } = [];
+    public List<(Guid JobId, Guid InstrumentId, GeneratedAnalysis Analysis, GenerationStats Stats, string GeneratedBy, int TtlSeconds)> Completed { get; } = [];
+
+    /// False simulates another worker having taken the job over.
+    public bool JobStillRunning { get; set; } = true;
+
+    public Task<StoredAnalysis?> FindLatestAsync(Guid instrumentId, int minAgeSeconds, CancellationToken cancel) =>
+        Task.FromResult(Latest.GetValueOrDefault(instrumentId));
+
+    public Task<IReadOnlyDictionary<Guid, string>> LatestRatingsAsync(IReadOnlyCollection<Guid> instrumentIds, CancellationToken cancel) =>
+        Task.FromResult<IReadOnlyDictionary<Guid, string>>(
+            Latest.Where(e => instrumentIds.Contains(e.Key)).ToDictionary(e => e.Key, e => e.Value.Rating));
+
+    public Task<IReadOnlyList<RatingRow>> ListRatingsAsync(Guid instrumentId, long beforeSeq, int limit, CancellationToken cancel) =>
+        Task.FromResult<IReadOnlyList<RatingRow>>(Ratings.GetValueOrDefault(instrumentId, [])
+            .Where(r => r.Seq < beforeSeq).OrderByDescending(r => r.Seq).Take(limit).ToList());
+
+    public Task<bool> CompleteAsync(
+        Guid jobId, Guid instrumentId, GeneratedAnalysis analysis, GenerationStats stats, string generatedBy, int ttlSeconds,
+        CancellationToken cancel)
+    {
+        if (JobStillRunning) Completed.Add((jobId, instrumentId, analysis, stats, generatedBy, ttlSeconds));
+        return Task.FromResult(JobStillRunning);
+    }
+}
+
+internal sealed class FakeJobRepository : IGenerationJobRepository
+{
+    public JobState? LatestJob { get; set; }
+    public RefreshOutcome RefreshOutcome { get; set; } = RefreshOutcome.Queued;
+    public Queue<ClaimedJob> Claimable { get; } = new();
+    public List<(Guid InstrumentId, string Trigger, Guid? UserId, string? CorrelationId)> Enqueued { get; } = [];
+    public List<(Guid JobId, string Error, bool RefundAttempt)> Released { get; } = [];
+    public List<(Guid JobId, string Error)> Failed { get; } = [];
+    public int? LastRefreshLimit { get; private set; }
+
+    public Task<JobState?> FindLatestAsync(Guid instrumentId, int cooldownSeconds, CancellationToken cancel) =>
+        Task.FromResult(LatestJob);
+
+    public Task<bool> EnqueueAsync(Guid instrumentId, string trigger, string? correlationId, CancellationToken cancel)
+    {
+        Enqueued.Add((instrumentId, trigger, null, correlationId));
+        return Task.FromResult(true);
+    }
+
+    public Task<RefreshOutcome> EnqueueUserRefreshAsync(
+        Guid userId, Guid instrumentId, int limit, string? correlationId, CancellationToken cancel)
+    {
+        LastRefreshLimit = limit;
+        if (RefreshOutcome == RefreshOutcome.Queued) Enqueued.Add((instrumentId, JobTriggers.User, userId, correlationId));
+        return Task.FromResult(RefreshOutcome);
+    }
+
+    public Task<ClaimedJob?> ClaimAsync(string claimedBy, int timeoutSeconds, CancellationToken cancel) =>
+        Task.FromResult(Claimable.Count > 0 ? Claimable.Dequeue() : null);
+
+    public Task ReleaseAsync(Guid jobId, string error, bool refundAttempt, CancellationToken cancel)
+    {
+        Released.Add((jobId, error, refundAttempt));
+        return Task.CompletedTask;
+    }
+
+    public Task FailAsync(Guid jobId, string error, CancellationToken cancel)
+    {
+        Failed.Add((jobId, error));
+        return Task.CompletedTask;
+    }
+}
+
+/// Answers with <see cref="Answer"/>; set it to throw to simulate a failing LLM.
+internal sealed class FakeLlm : ILlmClient
+{
+    public Func<LlmRequest, LlmResult> Answer { get; set; } = _ => SampleAnalysis.LlmResult();
+    public List<LlmRequest> Requests { get; } = [];
+
+    public Task<LlmResult> GenerateAsync(LlmRequest request, CancellationToken cancel)
+    {
+        cancel.ThrowIfCancellationRequested();
+        Requests.Add(request);
+        return Task.FromResult(Answer(request));
+    }
+}
+
+internal static class SampleAnalysis
+{
+    public const string Url = "https://example.com/report";
+
+    public const string Json = """
+        {
+          "summary": "A summary.",
+          "bullPoints": ["Bull."],
+          "bearPoints": ["Bear."],
+          "risks": ["Risk."],
+          "keyFigures": [{"label": "P/E ratio", "value": "30.1", "asOf": "2026-11-11"}],
+          "rating": "BUY",
+          "confidence": "MEDIUM",
+          "rationale": "Because.",
+          "sources": [{"title": "Report", "url": "https://example.com/report"}]
+        }
+        """;
+
+    public static LlmResult LlmResult(string json = Json) =>
+        new(json, [new Source("Report", Url), new Source("Other", "https://example.com/other")], 120, 340, "test-model");
+
+    public static StoredAnalysis Stored(string rating = "HOLD", bool fresh = true, bool young = true) => new(
+        new AnalysisContent("A summary.", ["Bull."], ["Bear."], ["Risk."], [new KeyFigure("P/E ratio", "30.1", "2026-11-11")]),
+        [new Source("Report", Url)],
+        rating, "MEDIUM", "Because.",
+        new DateTime(2026, 11, 11, 17, 0, 0, DateTimeKind.Utc), new DateTime(2026, 11, 12, 17, 0, 0, DateTimeKind.Utc), "java",
+        fresh, young);
+}
+
+/// The folder shared by both APIs (app/api/shared), found from the test's working directory.
+internal static class SharedFolder
+{
+    public static string Path
+    {
+        get
+        {
+            for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+            {
+                var candidate = System.IO.Path.Combine(dir.FullName, "shared");
+                if (Directory.Exists(System.IO.Path.Combine(candidate, "llm"))) return candidate;
+            }
+            throw new DirectoryNotFoundException("Cannot find app/api/shared above the test directory.");
+        }
+    }
 }

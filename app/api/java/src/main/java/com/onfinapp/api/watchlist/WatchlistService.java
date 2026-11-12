@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
+import com.onfinapp.api.analysis.AnalysisRepository;
 import com.onfinapp.api.common.ApiProblemException;
 import com.onfinapp.api.instrument.Instrument;
 import com.onfinapp.api.instrument.InstrumentRepository;
@@ -30,7 +31,7 @@ public class WatchlistService {
     public record WatchlistProperties(@Positive int limit) {
     }
 
-    /** rating is null until analyses exist (milestone 3). */
+    /** rating is the current rating; null until an analysis has been generated. */
     public record WatchlistItemResponse(
             String symbol, String name, String type, String exchange, Quote quote, String rating) {
     }
@@ -43,23 +44,26 @@ public class WatchlistService {
     private final WatchlistRepository watchlist;
     private final InstrumentRepository instruments;
     private final PriceService prices;
+    private final AnalysisRepository analyses;
     private final int limit;
 
     public WatchlistService(WatchlistRepository watchlist, InstrumentRepository instruments, PriceService prices,
-            WatchlistProperties properties) {
+            AnalysisRepository analyses, WatchlistProperties properties) {
         this.watchlist = watchlist;
         this.instruments = instruments;
         this.prices = prices;
+        this.analyses = analyses;
         this.limit = properties.limit();
     }
 
     public WatchlistResponse get(UUID userId) {
         List<Instrument> followed = watchlist.list(userId);
         Map<UUID, Quote> quotes = prices.quotes(followed.stream().map(Instrument::ref).toList());
+        Map<UUID, String> ratings = analyses.latestRatings(followed.stream().map(Instrument::id).toList());
         return new WatchlistResponse(
                 followed.stream()
                         .map(i -> new WatchlistItemResponse(
-                                i.symbol(), i.name(), i.type(), i.exchange(), quotes.get(i.id()), null))
+                                i.symbol(), i.name(), i.type(), i.exchange(), quotes.get(i.id()), ratings.get(i.id())))
                         .toList(),
                 limit);
     }

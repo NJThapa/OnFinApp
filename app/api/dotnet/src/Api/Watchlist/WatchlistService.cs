@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using OnFinApp.Api.Analyses;
 using OnFinApp.Api.Common;
 using OnFinApp.Api.Instruments;
 using OnFinApp.Api.Prices;
@@ -12,7 +13,7 @@ public sealed class WatchlistOptions
     public int Limit { get; set; } = 50;
 }
 
-/// Rating is null until analyses exist (milestone 3).
+/// Rating is the current rating; null until an analysis has been generated.
 public sealed record WatchlistItemResponse(string Symbol, string Name, string Type, string Exchange, Quote? Quote, string? Rating);
 
 public sealed record WatchlistResponse(IReadOnlyList<WatchlistItemResponse> Items, int Limit);
@@ -21,6 +22,7 @@ public sealed class WatchlistService(
     IWatchlistRepository watchlist,
     IInstrumentRepository instruments,
     PriceService prices,
+    IAnalysisRepository analyses,
     IOptions<WatchlistOptions> options,
     ILogger<WatchlistService> log)
 {
@@ -30,8 +32,10 @@ public sealed class WatchlistService(
     {
         var followed = await watchlist.ListAsync(userId, cancel);
         var quotes = await prices.GetQuotesAsync(followed.Select(i => i.Ref).ToList(), cancel);
+        var ratings = await analyses.LatestRatingsAsync(followed.Select(i => i.Id).ToList(), cancel);
         var items = followed
-            .Select(i => new WatchlistItemResponse(i.Symbol, i.Name, i.Type, i.Exchange, quotes.GetValueOrDefault(i.Id), Rating: null))
+            .Select(i => new WatchlistItemResponse(
+                i.Symbol, i.Name, i.Type, i.Exchange, quotes.GetValueOrDefault(i.Id), ratings.GetValueOrDefault(i.Id)))
             .ToList();
         return new WatchlistResponse(items, Limit);
     }

@@ -110,6 +110,72 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/instruments/{symbol}/analysis": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI-generated analysis and rating of an instrument
+         * @description Returns the stored analysis while it is valid. When there is none, or it has expired, generation starts in the background and the answer is 202 with status GENERATING; ask again until the status changes. An expired analysis is still returned while its replacement is generated. When the last generation failed, the status is FAILED for a few minutes before another attempt is made.
+         */
+        get: operations["getAnalysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instruments/{symbol}/analysis/refresh": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask for a new analysis
+         * @description Queues a new generation. The request is ignored, with status READY, when the current analysis is younger than the minimum age (default 1 hour). Each user can queue a limited number of refreshes in any 24 hours (default 5); joining a generation that is already running does not count.
+         */
+        post: operations["refreshAnalysis"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instruments/{symbol}/ratings": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** Rating history of an instrument, newest first */
+        get: operations["getRatings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/watchlist": {
         parameters: {
             query?: never;
@@ -231,6 +297,65 @@ export interface components {
         };
         /** @enum {string} */
         Rating: "BUY" | "HOLD" | "SELL";
+        /** @enum {string} */
+        Confidence: "LOW" | "MEDIUM" | "HIGH";
+        Source: {
+            title: string;
+            /** Format: uri */
+            url: string;
+        };
+        KeyFigure: {
+            label: string;
+            /** @description The figure as text, with its unit */
+            value: string;
+            /** Format: date */
+            asOf: string;
+        };
+        Analysis: {
+            summary: string;
+            bullPoints: string[];
+            bearPoints: string[];
+            risks: string[];
+            keyFigures: components["schemas"]["KeyFigure"][];
+            sources: components["schemas"]["Source"][];
+            rating: components["schemas"]["Rating"];
+            confidence: components["schemas"]["Confidence"];
+            rationale: string;
+            /** Format: date-time */
+            generatedAt: string;
+            /**
+             * Format: date-time
+             * @description After this time the analysis is regenerated the next time it is asked for
+             */
+            expiresAt: string;
+            /**
+             * @description Which implementation generated it
+             * @enum {string}
+             */
+            generatedBy: "java" | "dotnet";
+        };
+        AnalysisStatus: {
+            symbol: string;
+            /**
+             * @description READY: the analysis is valid. GENERATING: a generation is queued or running; ask again. FAILED: the last generation failed; the analysis, if any, is the last valid one.
+             * @enum {string}
+             */
+            status: "READY" | "GENERATING" | "FAILED";
+            /** @description The latest analysis; null when none has been generated yet */
+            analysis: components["schemas"]["Analysis"] | null;
+        };
+        RatingEntry: {
+            rating: components["schemas"]["Rating"];
+            confidence: components["schemas"]["Confidence"];
+            rationale: string;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        RatingPage: {
+            items: components["schemas"]["RatingEntry"][];
+            /** @description Pass as `cursor` to get the next page; null on the last page. */
+            nextCursor: string | null;
+        };
         WatchlistItem: {
             symbol: string;
             name: string;
@@ -452,6 +577,122 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             503: components["responses"]["PricesUnavailable"];
+        };
+    };
+    getAnalysis: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Status READY with a valid analysis, or FAILED with the last analysis if there is one */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            /** @description Status GENERATING; a generation is queued or running */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    refreshAnalysis: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ignored; the current analysis is recent */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            /** @description Status GENERATING; a generation is queued or running */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisStatus"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description The user's refresh limit is reached */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    getRatings: {
+        parameters: {
+            query?: {
+                /** @description Opaque value from `nextCursor` of the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of ratings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RatingPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
     getWatchlist: {

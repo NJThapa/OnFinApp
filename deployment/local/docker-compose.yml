@@ -10,7 +10,7 @@ x-oidc: &oidc
   CORS_ALLOWED_ORIGINS: http://localhost:8090
 
 x-shared: &shared
-  # Folder both APIs read: mock price fixtures now, LLM prompts later.
+  # Folder both APIs read: mock price fixtures, LLM prompts and schemas.
   - ../../app/api/shared:/shared:ro
 
 x-prices: &prices
@@ -18,6 +18,20 @@ x-prices: &prices
   PRICE_PROVIDER: ${PRICE_PROVIDER:-mock}
   SHARED_DIR: /shared
   WATCHLIST_LIMIT: ${WATCHLIST_LIMIT:-50}
+
+x-analysis: &analysis
+  # "mock" answers from fixed rules (app/api/shared/llm/README.md); no API key needed.
+  LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+  # How long the mock LLM waits before answering, and tickers for which it fails (comma-separated).
+  LLM_MOCK_DELAY_MS: ${LLM_MOCK_DELAY_MS:-1500}
+  LLM_MOCK_FAIL_SYMBOLS: ${LLM_MOCK_FAIL_SYMBOLS:-}
+  # An analysis is valid this long; each user can queue this many refreshes in any 24 hours; a refresh is
+  # ignored while the analysis is younger than the minimum age.
+  ANALYSIS_TTL_HOURS: ${ANALYSIS_TTL_HOURS:-24}
+  ANALYSIS_REFRESH_LIMIT: ${ANALYSIS_REFRESH_LIMIT:-5}
+  ANALYSIS_REFRESH_MIN_AGE_MINUTES: ${ANALYSIS_REFRESH_MIN_AGE_MINUTES:-60}
+  # After a failed generation, wait this long before one is started on demand again.
+  ANALYSIS_RETRY_AFTER_MINUTES: ${ANALYSIS_RETRY_AFTER_MINUTES:-5}
 
 x-telemetry: &telemetry
   # Both APIs send traces, metrics and logs over OTLP to the apm-server container.
@@ -116,8 +130,10 @@ services:
   api-java:
     build: ../../app/api/java
     environment:
-      <<: [*oidc, *prices, *telemetry]
+      <<: [*oidc, *prices, *analysis, *telemetry]
       OTEL_SERVICE_NAME: onfinapp-api-java
+      # Set to "false" to make this API queue generation jobs without running them.
+      ANALYSIS_WORKER_ENABLED: ${JAVA_ANALYSIS_WORKER_ENABLED:-true}
       # The Java agent is attached in the image but switched off by default.
       OTEL_SDK_DISABLED: "false"
       # Copy the correlation ID from the log context onto exported log records.
@@ -135,8 +151,9 @@ services:
   api-dotnet:
     build: ../../app/api/dotnet
     environment:
-      <<: [*oidc, *prices, *telemetry]
+      <<: [*oidc, *prices, *analysis, *telemetry]
       OTEL_SERVICE_NAME: onfinapp-api-dotnet
+      ANALYSIS_WORKER_ENABLED: ${DOTNET_ANALYSIS_WORKER_ENABLED:-true}
       Logging__LogLevel__OnFinApp: ${LOG_LEVEL:-Information}
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=onfinapp;Username=${DB_USER:-app};Password=${DB_PASSWORD:-app}
     volumes: *shared

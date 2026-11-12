@@ -1,0 +1,73 @@
+{
+  "instrument": {
+    "symbol": "SPY",
+    "name": "SPDR S&P 500 ETF Trust",
+    "type": "ETF"
+  },
+  "newYorkDate": "2026-11-11",
+  "answer": {
+    "summary": "Mock analysis of the fund SPDR S&P 500 ETF Trust (SPY). This text is generated from fixtures by the mock LLM; it is not real research.",
+    "bullPoints": [
+      "Mock bull point: SPY spreads its holdings widely.",
+      "Mock bull point: the expense ratio is low for its category."
+    ],
+    "bearPoints": [
+      "Mock bear point: the largest holdings make up a big share of SPY.",
+      "Mock bear point: the recent trend has been flat."
+    ],
+    "risks": [
+      "Mock risk: a broad market decline.",
+      "Mock risk: concentration in a few sectors."
+    ],
+    "keyFigures": [
+      {
+        "label": "Expense ratio",
+        "value": "0.06%",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "Top 10 holdings weight",
+        "value": "56.3%",
+        "asOf": "2026-11-11"
+      },
+      {
+        "label": "1-year return",
+        "value": "-3.7%",
+        "asOf": "2026-11-11"
+      }
+    ],
+    "rating": "HOLD",
+    "confidence": "HIGH",
+    "rationale": "Mock rationale: the invented figures for SPY are mixed.",
+    "sources": [
+      {
+        "title": "SPDR S&P 500 ETF Trust investor relations (mock)",
+        "url": "https://example.com/mock/SPY/investor-relations"
+      },
+      {
+        "title": "SPY latest quarterly report (mock)",
+        "url": "https://example.com/mock/SPY/quarterly-report"
+      },
+      {
+        "title": "Market commentary on SPY (mock)",
+        "url": "https://example.com/mock/SPY/market-commentary"
+      }
+    ]
+  },
+  "searchResults": [
+    {
+      "title": "SPDR S&P 500 ETF Trust investor relations (mock)",
+      "url": "https://example.com/mock/SPY/investor-relations"
+    },
+    {
+      "title": "SPY latest quarterly report (mock)",
+      "url": "https://example.com/mock/SPY/quarterly-report"
+    },
+    {
+      "title": "Market commentary on SPY (mock)",
+      "url": "https://example.com/mock/SPY/market-commentary"
+    }
+  ],
+  "outputTokens": 463,
+  "model": "mock"
+}

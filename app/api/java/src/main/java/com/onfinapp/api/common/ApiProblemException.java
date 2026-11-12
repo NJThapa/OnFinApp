@@ -39,4 +39,10 @@ public abstract class ApiProblemException extends RuntimeException {
             super(HttpStatus.SERVICE_UNAVAILABLE, "Prices are unavailable right now.");
         }
     }
+
+    public static final class RefreshLimit extends ApiProblemException {
+        public RefreshLimit(int limit) {
+            super(HttpStatus.TOO_MANY_REQUESTS, "You can refresh up to " + limit + " analyses in 24 hours.");
+        }
+    }
 }

@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiError, getInstrument, getPrices, type InstrumentDetail, type PricePoint, type PriceRange } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import { AnalysisSection } from '../components/AnalysisSection';
 import { EmptyState } from '../components/EmptyState';
 import { PriceChart } from '../components/PriceChart';
 import { direction, formatChange, formatChangePercent, formatPrice } from '../format/money';
@@ -21,7 +22,7 @@ export function StockScreen({ symbol }: { symbol: string }) {
   const market = useMarketColors();
   const router = useRouter();
   const { authorizedFetch } = useAuth();
-  const { isFollowing, follow, unfollow, limit } = useWatchlist();
+  const { isFollowing, follow, unfollow, limit, reload: reloadWatchlist } = useWatchlist();
 
   const [instrument, setInstrument] = useState<Loadable<InstrumentDetail>>({ status: 'loading' });
   const [range, setRange] = useState<PriceRange>('1M');
@@ -188,8 +189,16 @@ export function StockScreen({ symbol }: { symbol: string }) {
             </>
           )}
         </View>
+
+        <AnalysisSection
+          symbol={data.symbol}
+          onMessage={setMessage}
+          onRatingChanged={() => {
+            if (following) void reloadWatchlist(); // the watchlist row shows the rating
+          }}
+        />
       </ScrollView>
-      <Snackbar visible={message !== null} onDismiss={() => setMessage(null)} duration={2000}>
+      <Snackbar visible={message !== null} onDismiss={() => setMessage(null)} duration={3500}>
         {message ?? ''}
       </Snackbar>
     </SafeAreaView>
@@ -199,7 +208,7 @@ export function StockScreen({ symbol }: { symbol: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   bar: { flexDirection: 'row', width: '100%', maxWidth: 640, alignSelf: 'center', paddingHorizontal: 4 },
-  content: { padding: 16, paddingTop: 0, gap: 18, width: '100%', maxWidth: 640, alignSelf: 'center' },
+  content: { padding: 16, paddingTop: 0, paddingBottom: 32, gap: 18, width: '100%', maxWidth: 640, alignSelf: 'center' },
   titleRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   titleText: { flex: 1, gap: 2 },
   title: { fontWeight: '700' },

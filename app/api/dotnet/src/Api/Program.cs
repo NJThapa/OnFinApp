@@ -1,8 +1,10 @@
 using Npgsql;
+using OnFinApp.Api.Analyses;
 using OnFinApp.Api.Auth;
 using OnFinApp.Api.Common;
 using OnFinApp.Api.Health;
 using OnFinApp.Api.Instruments;
+using OnFinApp.Api.Llm;
 using OnFinApp.Api.Prices;
 using OnFinApp.Api.Users;
 using OnFinApp.Api.Watchlist;
@@ -27,6 +29,8 @@ builder.Services.AddUsers();
 builder.Services.AddPrices(config);
 builder.Services.AddInstruments();
 builder.Services.AddWatchlist(config);
+builder.Services.AddLlm(config);
+builder.Services.AddAnalyses(config);
 
 var app = builder.Build();
 
@@ -43,5 +47,6 @@ var v1 = app.MapGroup("/api/v1").RequireAuthorization();
 v1.MapUsers();
 v1.MapInstruments();
 v1.MapWatchlist();
+v1.MapAnalyses();
 
 app.Run();
