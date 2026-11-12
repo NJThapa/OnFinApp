@@ -67,7 +67,8 @@ fetches: quotes for 60 seconds, intraday charts (1D, 1W) for 5 minutes, daily ch
 
 The only price provider so far is `mock` (`PRICE_PROVIDER=mock`, the default). **Its prices are invented**: they
 are generated from `app/api/shared/mock/instruments.json` by the formulas in `app/api/shared/mock/README.md`,
-identically in both APIs, and are not market data. Finnhub comes with milestone 7.
+identically in both APIs, and are not market data. A real provider comes with epic 2, after the provider trial
+in epic 1 (see the delivery plan in [SPEC.md](SPEC.md), section 13).
 
 A user can follow up to 50 instruments (`WATCHLIST_LIMIT`).
 
@@ -100,9 +101,9 @@ The only LLM so far is `mock` (`LLM_PROVIDER=mock`, the default). **Its analyses
 they are built from fixed rules, say so in their text, and cite `example.com` addresses that do not exist. The
 mock rating changes from day to day so the history shows changes. `LLM_MOCK_DELAY_MS` (default 1500) sets how
 long it takes to answer and `LLM_MOCK_FAIL_SYMBOLS` lists tickers for which it fails. A real vendor comes with
-milestone 7.
+epic 2, after the provider trial in epic 1.
 
-Not built yet: the scheduled refresh (milestone 5) and the daily cap on generations (milestone 6).
+Not built yet: the scheduled refresh (epic 5) and the daily cap on generations (epic 2).
 
 ## Errors, logging and telemetry
 
