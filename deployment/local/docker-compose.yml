@@ -9,7 +9,67 @@ x-oidc: &oidc
   # Browser origins allowed to call the API (the Expo web app). Comma-separated.
   CORS_ALLOWED_ORIGINS: http://localhost:8090
 
+x-shared: &shared
+  # Folder both APIs read: mock price fixtures now, LLM prompts later.
+  - ../../app/api/shared:/shared:ro
+
+x-prices: &prices
+  # "mock" generates invented prices from /shared/mock; no API key needed.
+  PRICE_PROVIDER: ${PRICE_PROVIDER:-mock}
+  SHARED_DIR: /shared
+  WATCHLIST_LIMIT: ${WATCHLIST_LIMIT:-50}
+
+x-telemetry: &telemetry
+  # Both APIs send traces, metrics and logs over OTLP to the apm-server container.
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://apm-server:8200
+  OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+  OTEL_RESOURCE_ATTRIBUTES: deployment.environment.name=local
+  OTEL_METRIC_EXPORT_INTERVAL: "15000"
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
 services:
+  # Elastic Stack for telemetry, on the free Basic license. Local only: security is off and the data
+  # lives in the elasticsearch container, so it is lost when that container is removed.
+  # Kibana: http://localhost:5601 (no sign-in) -> Observability -> Applications / Logs.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.6
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.license.self_generated.type: basic
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=2s"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.5.6
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  # Receives OpenTelemetry (OTLP over HTTP or gRPC, both on port 8200) from the APIs and stores it in Elasticsearch.
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:9.5.6
+    command:
+      - --strict.perms=false
+      - -e
+      - -E
+      - apm-server.host=0.0.0.0:8200
+      - -E
+      - output.elasticsearch.hosts=["http://elasticsearch:9200"]
+    ports:
+      - "8200:8200"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   postgres:
     image: postgres:17
     environment:
@@ -56,10 +116,16 @@ services:
   api-java:
     build: ../../app/api/java
     environment:
-      <<: *oidc
+      <<: [*oidc, *prices, *telemetry]
+      OTEL_SERVICE_NAME: onfinapp-api-java
+      # The Java agent is attached in the image but switched off by default.
+      OTEL_SDK_DISABLED: "false"
+      # Copy the correlation ID from the log context onto exported log records.
+      OTEL_INSTRUMENTATION_LOGBACK_APPENDER_EXPERIMENTAL_CAPTURE_MDC_ATTRIBUTES: "*"
       DB_URL: jdbc:postgresql://postgres:5432/onfinapp
       DB_USER: ${DB_USER:-app}
       DB_PASSWORD: ${DB_PASSWORD:-app}
+    volumes: *shared
     ports:
       - "8080:8080"
     depends_on:
@@ -69,8 +135,11 @@ services:
   api-dotnet:
     build: ../../app/api/dotnet
     environment:
-      <<: *oidc
+      <<: [*oidc, *prices, *telemetry]
+      OTEL_SERVICE_NAME: onfinapp-api-dotnet
+      Logging__LogLevel__OnFinApp: ${LOG_LEVEL:-Information}
       ConnectionStrings__Default: Host=postgres;Port=5432;Database=onfinapp;Username=${DB_USER:-app};Password=${DB_PASSWORD:-app}
+    volumes: *shared
     ports:
       - "8081:8080"
     depends_on:

@@ -1,9 +1,10 @@
 import * as AuthSession from 'expo-auth-session';
+import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
-import { ApiError, type AuthorizedFetch, getMe, type User } from '../api/client';
+import { ApiError, type AuthorizedFetch, CORRELATION_HEADER, getMe, type User } from '../api/client';
 import { config } from '../config';
 import { clearSession, loadSession, saveSession, type Session } from './sessionStorage';
 
@@ -88,10 +89,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const authorizedFetch = useCallback<AuthorizedFetch>(
     async (path, init) => {
+      // One ID per call, kept across the retry after a token refresh, so the API's logs for it can be found.
+      const correlationId = Crypto.randomUUID();
       const send = (token: string) =>
         fetch(config.apiBaseUrl + path, {
           ...init,
-          headers: { ...init?.headers, Authorization: `Bearer ${token}` },
+          headers: { ...init?.headers, Authorization: `Bearer ${token}`, [CORRELATION_HEADER]: correlationId },
         });
       try {
         let session = sessionRef.current;

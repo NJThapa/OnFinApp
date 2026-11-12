@@ -5,46 +5,7 @@
 import assert from 'node:assert/strict';
 import { before, describe, test } from 'node:test';
 
-const API = process.env.API_BASE_URL ?? 'http://localhost:8080';
-const TOKEN_URL =
-  process.env.OIDC_TOKEN_URL ?? 'http://localhost:8082/realms/onfinapp/protocol/openid-connect/token';
-const CLIENT_ID = process.env.OIDC_TEST_CLIENT_ID ?? 'onfinapp-tests';
-const USERNAME = process.env.TEST_USERNAME ?? 'testuser';
-const PASSWORD = process.env.TEST_PASSWORD ?? 'testpass';
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-
-async function fetchToken() {
-  const res = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'password',
-      client_id: CLIENT_ID,
-      username: USERNAME,
-      password: PASSWORD,
-      scope: 'openid',
-    }),
-  });
-  const text = await res.text();
-  assert.equal(res.status, 200, `token request failed: ${text}`);
-  return JSON.parse(text).access_token;
-}
-
-const get = (path, token) =>
-  fetch(API + path, { headers: token ? { authorization: `Bearer ${token}` } : {} });
-
-async function assertUnauthorizedProblem(res) {
-  assert.equal(res.status, 401);
-  assert.match(res.headers.get('content-type') ?? '', /^application\/problem\+json/);
-  assert.match(res.headers.get('www-authenticate') ?? '', /^Bearer/);
-  assert.deepEqual(await res.json(), {
-    type: 'about:blank',
-    title: 'Unauthorized',
-    status: 401,
-    detail: 'A valid bearer token is required.',
-  });
-}
+import { API, assertUnauthorizedProblem, fetchToken, get, UUID } from './helpers.mjs';
 
 describe(`contract @ ${API}`, () => {
   let token;
@@ -94,6 +55,73 @@ describe(`contract @ ${API}`, () => {
       const first = await (await get('/api/v1/me', token)).json();
       const second = await (await get('/api/v1/me', token)).json();
       assert.equal(first.id, second.id);
+    });
+  });
+
+  describe('token validation', () => {
+    test('a token issued for another audience returns 401 problem+json', async () => {
+      // Same realm, same user, valid signature, but from a client whose tokens are not meant for this API.
+      const other = await fetchToken('admin-cli');
+      await assertUnauthorizedProblem(await get('/api/v1/me', other));
+    });
+
+    test('a token with an altered payload returns 401 problem+json', async () => {
+      const [header, payload, signature] = token.split('.');
+      const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+      const forged = Buffer.from(JSON.stringify({ ...claims, sub: 'someone-else' })).toString('base64url');
+      await assertUnauthorizedProblem(await get('/api/v1/me', `${header}.${forged}.${signature}`));
+    });
+
+    test('an unsigned token returns 401 problem+json', async () => {
+      const payload = token.split('.')[1];
+      const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+      await assertUnauthorizedProblem(await get('/api/v1/me', `${header}.${payload}.`));
+    });
+  });
+
+  describe('X-Correlation-ID', () => {
+    const UUID_ANY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    const withId = (path, id, auth = token) =>
+      fetch(API + path, { headers: { ...(auth ? { authorization: `Bearer ${auth}` } : {}), 'x-correlation-id': id } });
+
+    test('is echoed on success', async () => {
+      const res = await withId('/api/v1/me', 'contract-test.42_A');
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('x-correlation-id'), 'contract-test.42_A');
+    });
+
+    test('is echoed on errors, including 401 and 404', async () => {
+      assert.equal((await withId('/api/v1/me', 'no-token-1', null)).headers.get('x-correlation-id'), 'no-token-1');
+      assert.equal((await withId('/api/v1/instruments/NOPE', 'not-found-1')).headers.get('x-correlation-id'), 'not-found-1');
+    });
+
+    test('is generated when the request has none', async () => {
+      assert.match((await get('/api/v1/me', token)).headers.get('x-correlation-id') ?? '', UUID_ANY);
+      assert.match((await get('/api/health')).headers.get('x-correlation-id') ?? '', UUID_ANY);
+    });
+
+    test('is replaced when it is not a plain token of at most 64 characters', async () => {
+      for (const bad of ['has space', '{"a":1}', 'a'.repeat(65)]) {
+        assert.match((await withId('/api/v1/me', bad)).headers.get('x-correlation-id') ?? '', UUID_ANY, bad);
+      }
+    });
+
+    test('can be sent and read by the web app (CORS)', async () => {
+      const preflight = await fetch(API + '/api/v1/me', {
+        method: 'OPTIONS',
+        headers: {
+          origin: 'http://localhost:8090',
+          'access-control-request-method': 'GET',
+          'access-control-request-headers': 'authorization,x-correlation-id',
+        },
+      });
+      assert.ok(preflight.ok, `expected 2xx, got ${preflight.status}`);
+      assert.match(preflight.headers.get('access-control-allow-headers') ?? '', /x-correlation-id/i);
+
+      const res = await fetch(API + '/api/v1/me', {
+        headers: { authorization: `Bearer ${token}`, origin: 'http://localhost:8090' },
+      });
+      assert.match(res.headers.get('access-control-expose-headers') ?? '', /x-correlation-id/i);
     });
   });
 

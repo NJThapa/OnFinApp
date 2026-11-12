@@ -7,7 +7,10 @@ export interface paths {
     "/api/health": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -24,7 +27,10 @@ export interface paths {
     "/api/v1/me": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -36,6 +42,116 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instruments": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Search stocks and ETFs by ticker or name
+         * @description Case-insensitive. An exact ticker match comes first, then tickers that start with the query, then names that contain it; each group is ordered by ticker. Without a query, every instrument is returned in ticker order.
+         */
+        get: operations["searchInstruments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instruments/{symbol}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** Instrument details and latest quote */
+        get: operations["getInstrument"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instruments/{symbol}/prices": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** Chart data for one range */
+        get: operations["getPrices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/watchlist": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** Instruments the current user follows, in the order followed */
+        get: operations["getWatchlist"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/watchlist/{symbol}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Follow an instrument
+         * @description Idempotent; following an instrument that is already followed succeeds.
+         */
+        put: operations["followInstrument"];
+        post?: never;
+        /**
+         * Unfollow an instrument
+         * @description Idempotent; unfollowing an instrument that is not followed succeeds.
+         */
+        delete: operations["unfollowInstrument"];
         options?: never;
         head?: never;
         patch?: never;
@@ -62,12 +178,81 @@ export interface components {
             email: string | null;
             name: string | null;
         };
+        Instrument: {
+            symbol: string;
+            name: string;
+            type: components["schemas"]["InstrumentType"];
+            exchange: string;
+        };
+        /** @enum {string} */
+        InstrumentType: "STOCK" | "ETF";
+        InstrumentPage: {
+            items: components["schemas"]["Instrument"][];
+            /** @description Pass as `cursor` to get the next page; null on the last page. */
+            nextCursor: string | null;
+        };
+        Quote: {
+            price: number;
+            /** @description Price minus previous close */
+            change: number;
+            /** @description Day change in percent */
+            changePercent: number;
+            previousClose: number;
+            /**
+             * Format: date-time
+             * @description When the quote was fetched from the price provider
+             */
+            asOf: string;
+        };
+        InstrumentDetail: {
+            symbol: string;
+            name: string;
+            type: components["schemas"]["InstrumentType"];
+            exchange: string;
+            /** @description Null when the price provider is unavailable and nothing is cached */
+            quote: components["schemas"]["Quote"] | null;
+            /** @description Whether the current user follows this instrument */
+            following: boolean;
+        };
+        /**
+         * @default 1M
+         * @enum {string}
+         */
+        PriceRange: "1D" | "1W" | "1M" | "1Y" | "5Y";
+        PriceSeries: {
+            symbol: string;
+            range: components["schemas"]["PriceRange"];
+            points: components["schemas"]["PricePoint"][];
+        };
+        PricePoint: {
+            /** Format: date-time */
+            time: string;
+            close: number;
+        };
+        /** @enum {string} */
+        Rating: "BUY" | "HOLD" | "SELL";
+        WatchlistItem: {
+            symbol: string;
+            name: string;
+            type: components["schemas"]["InstrumentType"];
+            exchange: string;
+            quote: components["schemas"]["Quote"] | null;
+            /** @description Current rating; null until an analysis has been generated */
+            rating: components["schemas"]["Rating"] | null;
+        };
+        Watchlist: {
+            items: components["schemas"]["WatchlistItem"][];
+            /** @description Maximum number of instruments one user can follow */
+            limit: number;
+        };
         /** @description RFC 9457 problem details */
         Problem: {
             type: string;
             title: string;
             status: number;
             detail?: string;
+            /** @description Path of the request that failed */
+            instance?: string;
         };
     };
     responses: {
@@ -80,8 +265,43 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description A parameter is invalid */
+        BadRequest: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description No instrument has this ticker */
+        NotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The price provider is unavailable and nothing is cached */
+        PricesUnavailable: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
     };
-    parameters: never;
+    parameters: {
+        /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+        CorrelationId: string;
+        /** @description Ticker; case-insensitive. */
+        Symbol: string;
+        /** @description Opaque value from `nextCursor` of the previous page. */
+        Cursor: string;
+        Limit: number;
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -91,7 +311,10 @@ export interface operations {
     getHealth: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -120,7 +343,10 @@ export interface operations {
     getMe: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
             path?: never;
             cookie?: never;
         };
@@ -136,6 +362,181 @@ export interface operations {
                 };
             };
             401: components["responses"]["Unauthorized"];
+        };
+    };
+    searchInstruments: {
+        parameters: {
+            query?: {
+                query?: string;
+                /** @description Opaque value from `nextCursor` of the previous page. */
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of matches */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstrumentPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    getInstrument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The instrument */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstrumentDetail"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getPrices: {
+        parameters: {
+            query?: {
+                range?: components["schemas"]["PriceRange"];
+            };
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Closing prices, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PriceSeries"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            503: components["responses"]["PricesUnavailable"];
+        };
+    };
+    getWatchlist: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The watchlist */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Watchlist"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    followInstrument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Followed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            /** @description The watchlist limit is reached */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    unfollowInstrument: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed. */
+                "X-Correlation-ID"?: components["parameters"]["CorrelationId"];
+            };
+            path: {
+                /** @description Ticker; case-insensitive. */
+                symbol: components["parameters"]["Symbol"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unfollowed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
         };
     };
 }

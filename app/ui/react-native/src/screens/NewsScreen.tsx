@@ -90,6 +90,7 @@ export function NewsScreen() {
 
 function NewsCard({ item }: { item: NewsItem }) {
   const theme = useTheme();
+  const router = useRouter();
   return (
     <Card
       mode="outlined"
@@ -106,7 +107,13 @@ function NewsCard({ item }: { item: NewsItem }) {
         {item.tickers.length > 0 ? (
           <View style={styles.chips}>
             {item.tickers.map((ticker) => (
-              <Chip key={ticker} compact mode="flat">
+              <Chip
+                key={ticker}
+                compact
+                mode="flat"
+                accessibilityLabel={`Open ${ticker}`}
+                onPress={() => router.push(`/stocks/${encodeURIComponent(ticker)}`)}
+              >
                 {ticker}
               </Chip>
             ))}

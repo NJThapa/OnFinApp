@@ -1,10 +1,15 @@
 openapi: 3.1.0
 info:
   title: OnFinApp API
-  version: 0.1.0
+  version: 0.3.0
   description: >
     Shared contract implemented by both the Java and the .NET API.
     Every endpoint requires a bearer JWT except GET /api/health.
+
+    Every request may carry an X-Correlation-ID header: letters, digits, dot, underscore and hyphen, at most
+    64 characters. Every response, including errors, returns the ID in the same header. When the request
+    has no ID, or one that does not fit that format, the API generates a UUID instead. The ID appears on
+    every log line the request produces.
 
 servers:
   - url: http://localhost:8080
@@ -17,6 +22,8 @@ security:
 
 paths:
   /api/health:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
     get:
       operationId: getHealth
       summary: Liveness and database check
@@ -36,6 +43,8 @@ paths:
                 $ref: "#/components/schemas/Health"
 
   /api/v1/me:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
     get:
       operationId: getMe
       summary: Current user
@@ -50,6 +59,136 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/v1/instruments:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    get:
+      operationId: searchInstruments
+      summary: Search stocks and ETFs by ticker or name
+      description: >
+        Case-insensitive. An exact ticker match comes first, then tickers that start with the query,
+        then names that contain it; each group is ordered by ticker. Without a query, every instrument
+        is returned in ticker order.
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+            maxLength: 50
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: One page of matches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstrumentPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/instruments/{symbol}:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    get:
+      operationId: getInstrument
+      summary: Instrument details and latest quote
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "200":
+          description: The instrument
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InstrumentDetail"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/instruments/{symbol}/prices:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    get:
+      operationId: getPrices
+      summary: Chart data for one range
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - name: range
+          in: query
+          schema:
+            $ref: "#/components/schemas/PriceRange"
+      responses:
+        "200":
+          description: Closing prices, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PriceSeries"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          $ref: "#/components/responses/PricesUnavailable"
+
+  /api/v1/watchlist:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    get:
+      operationId: getWatchlist
+      summary: Instruments the current user follows, in the order followed
+      responses:
+        "200":
+          description: The watchlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Watchlist"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/watchlist/{symbol}:
+    parameters:
+      - $ref: "#/components/parameters/CorrelationId"
+    put:
+      operationId: followInstrument
+      summary: Follow an instrument
+      description: Idempotent; following an instrument that is already followed succeeds.
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "204":
+          description: Followed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: The watchlist limit is reached
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+    delete:
+      operationId: unfollowInstrument
+      summary: Unfollow an instrument
+      description: Idempotent; unfollowing an instrument that is not followed succeeds.
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "204":
+          description: Unfollowed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -57,9 +196,58 @@ components:
       scheme: bearer
       bearerFormat: JWT
 
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      description: Client-chosen ID that ties this request to the API's logs. Generated when absent or malformed.
+      schema:
+        type: string
+        pattern: "^[A-Za-z0-9._-]{1,64}$"
+    Symbol:
+      name: symbol
+      in: path
+      required: true
+      description: Ticker; case-insensitive.
+      schema:
+        type: string
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque value from `nextCursor` of the previous page.
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+
   responses:
     Unauthorized:
       description: Missing, expired or invalid token
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+    BadRequest:
+      description: A parameter is invalid
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: No instrument has this ticker
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    PricesUnavailable:
+      description: The price provider is unavailable and nothing is cached
       content:
         application/problem+json:
           schema:
@@ -95,6 +283,149 @@ components:
         name:
           type: [string, "null"]
 
+    Instrument:
+      type: object
+      required: [symbol, name, type, exchange]
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/InstrumentType"
+        exchange:
+          type: string
+
+    InstrumentType:
+      type: string
+      enum: [STOCK, ETF]
+
+    InstrumentPage:
+      type: object
+      required: [items, nextCursor]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Instrument"
+        nextCursor:
+          type: [string, "null"]
+          description: Pass as `cursor` to get the next page; null on the last page.
+
+    Quote:
+      type: object
+      required: [price, change, changePercent, previousClose, asOf]
+      additionalProperties: false
+      properties:
+        price:
+          type: number
+        change:
+          type: number
+          description: Price minus previous close
+        changePercent:
+          type: number
+          description: Day change in percent
+        previousClose:
+          type: number
+        asOf:
+          type: string
+          format: date-time
+          description: When the quote was fetched from the price provider
+
+    InstrumentDetail:
+      type: object
+      required: [symbol, name, type, exchange, quote, following]
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/InstrumentType"
+        exchange:
+          type: string
+        quote:
+          description: Null when the price provider is unavailable and nothing is cached
+          oneOf:
+            - $ref: "#/components/schemas/Quote"
+            - type: "null"
+        following:
+          type: boolean
+          description: Whether the current user follows this instrument
+
+    PriceRange:
+      type: string
+      enum: [1D, 1W, 1M, 1Y, 5Y]
+      default: 1M
+
+    PriceSeries:
+      type: object
+      required: [symbol, range, points]
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+        range:
+          $ref: "#/components/schemas/PriceRange"
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/PricePoint"
+
+    PricePoint:
+      type: object
+      required: [time, close]
+      additionalProperties: false
+      properties:
+        time:
+          type: string
+          format: date-time
+        close:
+          type: number
+
+    Rating:
+      type: string
+      enum: [BUY, HOLD, SELL]
+
+    WatchlistItem:
+      type: object
+      required: [symbol, name, type, exchange, quote, rating]
+      additionalProperties: false
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/InstrumentType"
+        exchange:
+          type: string
+        quote:
+          oneOf:
+            - $ref: "#/components/schemas/Quote"
+            - type: "null"
+        rating:
+          description: Current rating; null until an analysis has been generated
+          oneOf:
+            - $ref: "#/components/schemas/Rating"
+            - type: "null"
+
+    Watchlist:
+      type: object
+      required: [items, limit]
+      additionalProperties: false
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/WatchlistItem"
+        limit:
+          type: integer
+          description: Maximum number of instruments one user can follow
+
     Problem:
       description: RFC 9457 problem details
       type: object
@@ -108,3 +439,6 @@ components:
           type: integer
         detail:
           type: string
+        instance:
+          type: string
+          description: Path of the request that failed

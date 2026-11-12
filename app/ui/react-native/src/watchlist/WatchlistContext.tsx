@@ -1,39 +1,83 @@
-import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-import { defaultWatchlist } from '../sample/data';
+import { ApiError, followInstrument, getWatchlist, unfollowInstrument, type WatchlistItem } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
 
-/** Followed-instrument limit per user (SPEC 5.1). */
-export const WATCHLIST_LIMIT = 50;
+export type FollowResult = 'ok' | 'limit' | 'error';
 
 type WatchlistContextValue = {
+  /** Followed instruments with their latest quote, in the order followed. */
+  items: WatchlistItem[];
   symbols: string[];
+  /** Maximum number of instruments one user can follow; null until the first load. */
+  limit: number | null;
+  status: 'loading' | 'ready' | 'error';
   isFollowing: (symbol: string) => boolean;
-  /** Returns false if the limit is reached. */
-  follow: (symbol: string) => boolean;
-  unfollow: (symbol: string) => void;
+  reload: () => Promise<void>;
+  follow: (symbol: string) => Promise<FollowResult>;
+  unfollow: (symbol: string) => Promise<FollowResult>;
 };
 
 const WatchlistContext = createContext<WatchlistContextValue | null>(null);
 
-// Sample-data stage: follows live in memory and reset on reload. This will be backed by the API.
+/** The signed-in user's watchlist, kept on the API. */
 export function WatchlistProvider({ children }: { children: ReactNode }) {
-  const [symbols, setSymbols] = useState<string[]>(defaultWatchlist);
+  const { state, authorizedFetch } = useAuth();
+  const signedIn = state.status === 'signedIn';
+  const [items, setItems] = useState<WatchlistItem[]>([]);
+  const [limit, setLimit] = useState<number | null>(null);
+  const [status, setStatus] = useState<WatchlistContextValue['status']>('loading');
+
+  const reload = useCallback(async () => {
+    try {
+      const watchlist = await getWatchlist(authorizedFetch);
+      setItems(watchlist.items);
+      setLimit(watchlist.limit);
+      setStatus('ready');
+    } catch {
+      setStatus('error');
+    }
+  }, [authorizedFetch]);
+
+  useEffect(() => {
+    if (signedIn) {
+      void reload();
+    } else {
+      setItems([]);
+      setStatus('loading');
+    }
+  }, [signedIn, reload]);
 
   const follow = useCallback(
-    (symbol: string) => {
-      if (symbols.includes(symbol)) return true;
-      if (symbols.length >= WATCHLIST_LIMIT) return false;
-      setSymbols([...symbols, symbol]);
-      return true;
+    async (symbol: string): Promise<FollowResult> => {
+      try {
+        await followInstrument(authorizedFetch, symbol);
+      } catch (e) {
+        return e instanceof ApiError && e.status === 409 ? 'limit' : 'error';
+      }
+      await reload(); // brings the new row with its quote
+      return 'ok';
     },
-    [symbols],
+    [authorizedFetch, reload],
   );
-  const unfollow = useCallback((symbol: string) => setSymbols((current) => current.filter((s) => s !== symbol)), []);
 
-  const value = useMemo<WatchlistContextValue>(
-    () => ({ symbols, isFollowing: (symbol) => symbols.includes(symbol), follow, unfollow }),
-    [symbols, follow, unfollow],
+  const unfollow = useCallback(
+    async (symbol: string): Promise<FollowResult> => {
+      try {
+        await unfollowInstrument(authorizedFetch, symbol);
+      } catch {
+        return 'error';
+      }
+      setItems((current) => current.filter((item) => item.symbol !== symbol));
+      return 'ok';
+    },
+    [authorizedFetch],
   );
+
+  const value = useMemo<WatchlistContextValue>(() => {
+    const symbols = items.map((item) => item.symbol);
+    return { items, symbols, limit, status, isFollowing: (symbol) => symbols.includes(symbol), reload, follow, unfollow };
+  }, [items, limit, status, reload, follow, unfollow]);
   return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;
 }
 
