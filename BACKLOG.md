@@ -369,10 +369,10 @@ One line each. They become full stories when their epic is next.
 | API | Market news is generated, sourced, deduplicated and stored |
 | API | Stock news is generated with the analysis |
 | API | Feed with Market and My stocks tabs and mixed card types |
-| API | Rating-change cards |
-| API | Spotlight cards, and how instruments are chosen for them |
+| API | Rating-change cards, on My stocks only |
+| API | Spotlight cards without a rating, and how instruments are chosen for them |
 | UI (app) | Feed screen with both tabs, replacing the sample data |
-| UI (app) | Rating-change and spotlight cards |
+| UI (app) | Rating-change cards on My stocks; spotlight cards on Market, with no rating shown |
 | API | Bookmarks |
 | UI (app) | Bookmark action and Bookmarks screen |
 | API | News for one instrument |

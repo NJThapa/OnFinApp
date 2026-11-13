@@ -1,7 +1,7 @@
 # OnFinApp — Specification
 
-Status: v2, 12 November 2026. Version 1 was written from the product interview of 10 November. Version 2 adds
-the decisions from the product review of 12 November and marks what is already built.
+Status: v2, 13 November 2026. Version 1 was written from the product interview of 10 November. Version 2 adds
+the decisions from the product review of 12 and 13 November and marks what is already built.
 
 Feature sections say **Built** or **Planned**. Built sections describe the code in this repository; the
 contract (`app/api/contract/openapi.yaml`), the migrations and the README are authoritative for details.
@@ -50,7 +50,7 @@ What follows from the reader:
 
 ## 2. Decisions
 
-"v1" decisions come from the interview of 10 November, "v2" from the review of 12 November.
+"v1" decisions come from the interview of 10 November, "v2" from the review of 12 and 13 November.
 
 | Topic | Decision | From |
 |---|---|---|
@@ -70,7 +70,8 @@ What follows from the reader:
 | Purpose | Private use now, public release intended. Legal and licensing limits are designed in from now (section 14) | v2 |
 | Version 1 | Runs locally with real providers. No date | v2 |
 | Reader | Phone-first; wants insight without searching. The feed is the product | v2 |
-| Feed content | News plus AI insight cards: rating changes, and spotlights on instruments the reader does not follow | v2 |
+| Feed content | News plus AI insight cards: rating changes on My stocks, and spotlights (without a rating) on instruments the reader does not follow | v2 |
+| Where ratings appear | Buy/Hold/Sell ratings are for instruments the reader follows. They appear on the watchlist and on the My stocks tab. Market news and spotlights never carry a rating | v2 |
 | AI generation | Agent-based wherever it helps. How deep the agents go is a setting, chosen in the provider trial by quality and cost | v2 |
 | AI verdict | The AI is the only judge; no person reviews a rating. The system runs its own checks (section 6) | v2 |
 | Rating horizon | A setting from 1 to 12 months, stored with each rating and shown on it | v2 |
@@ -171,8 +172,11 @@ only, and prompts the reader to add stocks when they follow none.
 |---|---|---|
 | News | Headline, 2–3 sentence summary, source name, source URL, published time, related tickers | Market: general US market news. My stocks: news for followed instruments |
 | Rating change | Ticker, old and new rating, one-sentence reason, time | My stocks, when the rating of a followed instrument changes |
-| Spotlight | A short AI-written take on an instrument that is in the news, with its rating | Market, so readers meet instruments they do not follow |
+| Spotlight | A short AI-written take on an instrument that is in the news. It carries no rating | Market, so readers meet instruments they do not follow |
 
+- Ratings are for instruments the reader follows. A Buy/Hold/Sell rating appears on the My stocks tab only:
+  on rating-change cards, and next to the ticker of a followed instrument. Nothing on the Market tab shows a
+  rating, including the tickers on a news card and spotlights.
 - Infinite scroll, newest first, pull to refresh.
 - A news card opens the source article in the browser. A rating change or spotlight opens the stock page, and
   so does a ticker chip on any card.
@@ -196,12 +200,15 @@ only, and prompts the reader to add stocks when they follow none.
   current analysis is younger than the minimum age (default 1 hour).
 - A fixed notice on the rating card and analysis: AI-generated, may be wrong, not financial advice.
 - Planned (epic 3): a news tab for that instrument.
+- Open (section 15, question 11): today the page generates and shows an analysis and rating for any
+  instrument, followed or not. Ratings are meant for followed instruments, so this may change.
 
 ### 5.4 Stock comparison — Planned (epic 6)
 
 - Pick two instruments; show them side by side: price, day change, 1Y performance, rating, confidence,
   key figures, bull and bear points.
-- Uses the stored analysis of each instrument, generating it on demand if missing.
+- Uses the stored analysis of each instrument, generating it on demand if missing. Whether instruments the
+  reader does not follow can be compared depends on question 11 (section 15).
 - Adds an AI-written verdict comparing the two. (Version 1 of this document had no extra LLM call here.)
   Proposed, to control cost: the verdict is stored and reused while both analyses are unchanged.
 
@@ -466,3 +473,4 @@ terms of use; account deletion; app store rules for finance apps.
 | 8 | How often can market news be generated within the budget? | Epic 1, then epic 3 |
 | 9 | Sign-in tokens on web: `localStorage` (built) or memory only (version 1 of this document)? | Owner |
 | 10 | Legal review before any public release (section 14) | Epic 7 |
+| 11 | Ratings are for instruments the reader follows. For an instrument they do not follow, should the stock page (and the comparison screen) still show an analysis and rating, as built today, or only price, chart and news with a prompt to follow? The second avoids a generation for every ticker tapped in the news | Owner |
