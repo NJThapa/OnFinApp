@@ -410,7 +410,8 @@ The admin console comes before scheduling so that spend is visible and capped be
 
 ### Backlog rules
 
-- The backlog is GitHub Issues. Each epic is a GitHub milestone.
+- The backlog is GitHub Issues. Each epic is a GitHub milestone. Until the issues are created, the draft
+  backlog is in [BACKLOG.md](BACKLOG.md).
 - A story describes behaviour that can be observed: through the contract for an API story, on screen for a UI
   story. It never names a stack, framework or library.
 - API work and UI work are separate issues. Each UI (the reader app, the admin console) has its own issues.
