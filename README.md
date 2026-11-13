@@ -21,6 +21,13 @@ deployment/
   azure/                    Azure pipelines and infrastructure (later)
 ```
 
+## Backlog
+
+Work is tracked in [GitHub Issues](https://github.com/NJThapa/OnFinApp/issues), with one milestone per epic; the
+plan is in [SPEC.md](SPEC.md), section 13. API and UI stories are separate issues, each with its own definition
+of done, and a story never names a stack. New stories start from the issue templates. Stories intended for
+later epics are listed in [BACKLOG.md](BACKLOG.md).
+
 ## Run locally
 
 ```bash
