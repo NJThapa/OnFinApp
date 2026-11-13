@@ -48,6 +48,8 @@ One line each. They become full stories, as issues, when their epic is next.
 |---|---|
 | API | Real LLM vendor behind the existing interface |
 | API | Real price provider behind the existing interface |
+| API | Analysis, rating, rating history and refresh are available only for instruments the reader follows; nothing is generated for others |
+| UI (app) | The stock page of an instrument that is not followed shows price, chart and news, with a prompt to follow |
 | API | Agent-based generation with a depth setting |
 | API | Source verification before an analysis is stored |
 | API | A rating changes only when new information is cited |
@@ -105,7 +107,7 @@ One line each. They become full stories, as issues, when their epic is next.
 
 | Type | Story |
 |---|---|
-| API | Compare two instruments, with an AI-written verdict |
+| API | Compare two followed instruments, with an AI-written verdict |
 | UI (app) | Compare screen |
 | UI (app) | Switch between API implementations in developer builds |
 | UI (app) | Review of error, empty and offline states, and accessibility |

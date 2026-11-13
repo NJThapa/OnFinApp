@@ -44,7 +44,7 @@ What follows from the reader:
 - Trading, brokerage integration, or holding real portfolios.
 - Markets other than US-listed stocks and ETFs.
 - Training our own prediction models.
-- Advice tailored to a person. Every reader sees the same analysis and rating of an instrument.
+- Advice tailored to a person. Everyone who follows an instrument sees the same analysis and rating of it.
 - Public release. Open sign-up, app stores, hosted deployment and push notifications to devices come after
   version 1 (epic 7).
 
@@ -71,7 +71,7 @@ What follows from the reader:
 | Version 1 | Runs locally with real providers. No date | v2 |
 | Reader | Phone-first; wants insight without searching. The feed is the product | v2 |
 | Feed content | News plus AI insight cards: rating changes on My stocks, and spotlights (without a rating) on instruments the reader does not follow | v2 |
-| Where ratings appear | Buy/Hold/Sell ratings are for instruments the reader follows. They appear on the watchlist and on the My stocks tab. Market news and spotlights never carry a rating | v2 |
+| Where ratings appear | The analysis and the Buy/Hold/Sell rating are for instruments the reader follows. They appear on the watchlist, on the My stocks tab and on the stock page of a followed instrument. Market news and spotlights never carry a rating. For an instrument the reader does not follow, the stock page shows price, chart and news with a prompt to follow, and nothing is generated | v2 |
 | AI generation | Agent-based wherever it helps. How deep the agents go is a setting, chosen in the provider trial by quality and cost | v2 |
 | AI verdict | The AI is the only judge; no person reviews a rating. The system runs its own checks (section 6) | v2 |
 | Rating horizon | A setting from 1 to 12 months, stored with each rating and shown on it | v2 |
@@ -200,15 +200,16 @@ only, and prompts the reader to add stocks when they follow none.
   current analysis is younger than the minimum age (default 1 hour).
 - A fixed notice on the rating card and analysis: AI-generated, may be wrong, not financial advice.
 - Planned (epic 3): a news tab for that instrument.
-- Open (section 15, question 11): today the page generates and shows an analysis and rating for any
-  instrument, followed or not. Ratings are meant for followed instruments, so this may change.
+- Planned (epic 2): the analysis, rating, rating history and refresh are for instruments the reader follows.
+  For any other instrument the page shows the header, the chart and stored news that mentions it, with a
+  prompt to follow; nothing is generated. Today (milestone 3) the page generates and shows an analysis and
+  rating for any instrument.
 
 ### 5.4 Stock comparison — Planned (epic 6)
 
-- Pick two instruments; show them side by side: price, day change, 1Y performance, rating, confidence,
-  key figures, bull and bear points.
-- Uses the stored analysis of each instrument, generating it on demand if missing. Whether instruments the
-  reader does not follow can be compared depends on question 11 (section 15).
+- Pick two instruments the reader follows; show them side by side: price, day change, 1Y performance,
+  rating, confidence, key figures, bull and bear points.
+- Uses the stored analysis of each instrument, generating it on demand if missing.
 - Adds an AI-written verdict comparing the two. (Version 1 of this document had no extra LLM call here.)
   Proposed, to control cost: the verdict is stored and reused while both analyses are unchanged.
 
@@ -279,6 +280,7 @@ marked ✓ below.
 | Change | What it means | Epic |
 |---|---|---|
 | Real LLM vendor | One vendor behind the abstraction, chosen by the trial. It must offer web search with citations, schema-constrained JSON and tool use for agents, at an acceptable cost and with terms that allow this use | 1, 2 |
+| Followed instruments only | An analysis and rating are generated, refreshed and shown only for instruments the reader follows. Opening the page of any other instrument starts no generation | 2 |
 | Agent-based generation | The analysis is produced by an agent that plans its research and uses tools (web search, price data) instead of one call. How deep it goes is a setting. Agents are built in every API implementation, like the rest of the API (to be confirmed, section 15) | 2 |
 | ✓ Source verification | A second pass checks each claim and key figure against the source it cites. Unsupported claims are removed, or the answer is rejected | 2 |
 | ✓ Rating stability | The previous rating and rationale are given to the model. A change of rating must cite information newer than the previous rating; otherwise the previous rating stands. This also prevents false "rating changed" notifications | 2 |
@@ -292,7 +294,7 @@ marked ✓ below.
 
 | Artifact | Scope | Trigger | Status |
 |---|---|---|---|
-| Analysis + rating | per instrument, shared by all users | on demand and user refresh; schedule later | Built, with the mock |
+| Analysis + rating | per instrument, shared by everyone who follows it (today: any instrument) | on demand and user refresh; schedule later | Built, with the mock |
 | Market news batch | global | on demand with cache; schedule later (default hourly) | Planned |
 | Stock news batch | per instrument | with analysis | Planned |
 | Spotlight | per instrument in the news | with market news | Planned |
@@ -343,9 +345,9 @@ Base path `/api/v1`. Full definitions live in `app/api/contract/openapi.yaml` (v
 | `GET /instruments?query=` | Search | Built |
 | `GET /instruments/{symbol}` | Details and latest quote | Built |
 | `GET /instruments/{symbol}/prices?range=` | Chart data | Built |
-| `GET /instruments/{symbol}/analysis` | Stored analysis and rating, or `202` while generating | Built |
-| `POST /instruments/{symbol}/analysis/refresh` | Request regeneration (rate-limited) | Built |
-| `GET /instruments/{symbol}/ratings` | Rating history | Built |
+| `GET /instruments/{symbol}/analysis` | Stored analysis and rating, or `202` while generating | Built; followed instruments only from epic 2 |
+| `POST /instruments/{symbol}/analysis/refresh` | Request regeneration (rate-limited) | Built; followed instruments only from epic 2 |
+| `GET /instruments/{symbol}/ratings` | Rating history | Built; followed instruments only from epic 2 |
 | `GET /watchlist`, `PUT /watchlist/{symbol}`, `DELETE /watchlist/{symbol}` | Follow management | Built |
 | `GET /instruments/{symbol}/news` | News for one instrument | Planned (epic 3) |
 | `GET /news?tab=market\|mine` | Feed: news and insight cards | Planned (epic 3) |
@@ -446,8 +448,8 @@ The app is for private use now and is meant to be public later. Nothing in this 
 lawyer reviews the app before public release (epic 7). These limits apply from now, because they are cheaper
 to build in than to add later:
 
-- **Ratings are impersonal.** Every reader sees the same analysis and rating of an instrument. Nothing is
-  tailored to a reader's holdings, goals or circumstances.
+- **Ratings are impersonal.** Everyone who follows an instrument sees the same analysis and rating of it.
+  Nothing is tailored to a reader's holdings, goals or circumstances.
 - **The reader is told what they are looking at.** Every analysis and rating carries the notice "AI-generated.
   It may be wrong. This is not financial advice.", its sources, its generation time and (planned) its horizon.
 - **Every rating can be traced.** The model and sources behind a rating are stored today; the prompt version
@@ -475,4 +477,3 @@ terms of use; account deletion; app store rules for finance apps.
 | 8 | How often can market news be generated within the budget? | Epic 1, then epic 3 |
 | 9 | Sign-in tokens on web: `localStorage` (built) or memory only (version 1 of this document)? | Owner |
 | 10 | Legal review before any public release (section 14) | Epic 7 |
-| 11 | Ratings are for instruments the reader follows. For an instrument they do not follow, should the stock page (and the comparison screen) still show an analysis and rating, as built today, or only price, chart and news with a prompt to follow? The second avoids a generation for every ticker tapped in the news | Owner |
